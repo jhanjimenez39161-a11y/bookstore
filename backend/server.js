@@ -49,6 +49,27 @@ app.get('/api/productos', (req, res) => {
       precio: 58000,
       categoria: 'Finanzas',
     },
+    {
+      id: 6,
+      titulo: 'Sapiens',
+      autor: 'Yuval Noah Harari',
+      precio: 82000,
+      categoria: 'Historia',
+    },
+    {
+      id: 7,
+      titulo: 'Flutter en Acción',
+      autor: 'Eric Windmill',
+      precio: 180000,
+      categoria: 'Programación',
+    },
+    {
+      id: 8,
+      titulo: 'Aprendiendo Dart',
+      autor: 'Material Educativo',
+      precio: 89000,
+      categoria: 'Programación',
+    },
   ]);
 });
 
@@ -73,7 +94,7 @@ app.post('/api/recuperar-password', (req, res) => {
 
   return res.json({
     mensaje:
-        'Solicitud de recuperación recibida correctamente.',
+      'Solicitud de recuperación recibida correctamente.',
     correo: correo,
   });
 });

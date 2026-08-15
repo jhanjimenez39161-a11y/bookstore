@@ -5,7 +5,7 @@ import 'package:http/http.dart' as http;
 import '../models/libro.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://10.0.2.2:3000';
+  static const String baseUrl = 'http://192.168.1.4:3000';
 
   Future<List<Libro>> obtenerProductos() async {
     final response = await http.get(
@@ -27,8 +27,7 @@ class ApiService {
         autor: producto['autor'] as String,
         precio: (producto['precio'] as num).toDouble(),
         calificacion: 4.8,
-        descripcion:
-            'Producto disponible en BookStore.',
+        descripcion: 'Producto disponible en BookStore.',
         imagen: _imagenPorTitulo(
           producto['titulo'] as String,
         ),
@@ -73,6 +72,15 @@ class ApiService {
 
       case 'Padre Rico, Padre Pobre':
         return 'assets/images/padre_rico.jpg';
+
+      case 'Sapiens':
+        return 'assets/images/sapiens.jpg';
+
+      case 'Flutter en Acción':
+        return 'assets/images/flutter_accion.jpg';
+
+      case 'Aprendiendo Dart':
+        return 'assets/images/dart.jpg';
 
       default:
         return 'assets/images/clean_code.jpg';
