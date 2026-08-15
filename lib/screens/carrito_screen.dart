@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../database/database_helper.dart';
 import '../models/carrito.dart';
 import '../models/item_carrito.dart';
 
@@ -14,9 +15,190 @@ class CarritoScreen extends StatefulWidget {
 class _CarritoScreenState extends State<CarritoScreen> {
   final NumberFormat formatoPrecio = NumberFormat.currency(
     locale: 'es_CO',
-    symbol: '\$',
+    symbol: r'$',
     decimalDigits: 0,
   );
+
+  bool _procesandoPedido = false;
+
+  Future<void> _abrirConfirmacionPedido() async {
+    if (Carrito.instancia.items.isEmpty) {
+      return;
+    }
+
+    String metodoPago = 'Contra entrega';
+
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Confirmar pedido'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Selecciona el método de pago:',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+
+                  const SizedBox(height: 15),
+
+                  DropdownButtonFormField<String>(
+                    initialValue: metodoPago,
+                    decoration: const InputDecoration(
+                      labelText: 'Método de pago',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.payment),
+                    ),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'Contra entrega',
+                        child: Text('Contra entrega'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Pago digital',
+                        child: Text('Pago digital'),
+                      ),
+                    ],
+                    onChanged: (valor) {
+                      if (valor != null) {
+                        setDialogState(() {
+                          metodoPago = valor;
+                        });
+                      }
+                    },
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  Text(
+                    metodoPago == 'Contra entrega'
+                        ? 'Pagarás cuando recibas tu pedido.'
+                        : 'El pago digital se procesará mediante una plataforma de pago.',
+                    style: TextStyle(
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+
+                  const SizedBox(height: 15),
+
+                  Text(
+                    'Total: ${formatoPrecio.format(Carrito.instancia.total)}',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.indigo,
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(dialogContext, false);
+                  },
+                  child: const Text('Cancelar'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(dialogContext, true);
+                  },
+                  child: const Text('Confirmar pedido'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (confirmar == true) {
+      await _guardarPedido(metodoPago);
+    }
+  }
+
+  Future<void> _guardarPedido(String metodoPago) async {
+    if (_procesandoPedido) {
+      return;
+    }
+
+    setState(() {
+      _procesandoPedido = true;
+    });
+
+    try {
+      final total = Carrito.instancia.total;
+      final fecha = DateTime.now().toIso8601String();
+
+      final idPedido =
+          await DatabaseHelper.instance.insertarPedido(
+        fecha: fecha,
+        total: total,
+        metodoPago: metodoPago,
+        estado: 'En preparación',
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      Carrito.instancia.vaciar();
+
+      setState(() {
+        _procesandoPedido = false;
+      });
+
+      await showDialog(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            title: const Text('Pedido confirmado'),
+            content: Text(
+              'Tu pedido fue registrado correctamente.\n\n'
+              'Número de pedido: #$idPedido\n'
+              'Método de pago: $metodoPago\n'
+              'Estado: En preparación',
+            ),
+            actions: [
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                },
+                child: const Text('Aceptar'),
+              ),
+            ],
+          );
+        },
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {});
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _procesandoPedido = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'No fue posible registrar el pedido.',
+          ),
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -24,14 +206,14 @@ class _CarritoScreenState extends State<CarritoScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Carrito de compras"),
+        title: const Text('Carrito de compras'),
         backgroundColor: Colors.indigo,
         foregroundColor: Colors.white,
       ),
       body: items.isEmpty
           ? const Center(
               child: Text(
-                "Tu carrito está vacío",
+                'Tu carrito está vacío',
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
@@ -60,9 +242,13 @@ class _CarritoScreenState extends State<CarritoScreen> {
                                   Icons.menu_book,
                                   color: Colors.indigo,
                                 ),
-                                title: Text(item.libro.titulo),
+                                title: Text(
+                                  item.libro.titulo,
+                                ),
                                 subtitle: Text(
-                                  formatoPrecio.format(item.libro.precio),
+                                  formatoPrecio.format(
+                                    item.libro.precio,
+                                  ),
                                 ),
                                 trailing: IconButton(
                                   icon: const Icon(
@@ -71,7 +257,8 @@ class _CarritoScreenState extends State<CarritoScreen> {
                                   ),
                                   onPressed: () {
                                     setState(() {
-                                      Carrito.instancia.eliminar(item);
+                                      Carrito.instancia
+                                          .eliminar(item);
                                     });
                                   },
                                 ),
@@ -84,33 +271,41 @@ class _CarritoScreenState extends State<CarritoScreen> {
                                   IconButton(
                                     onPressed: () {
                                       setState(() {
-                                        Carrito.instancia.disminuir(item);
+                                        Carrito.instancia
+                                            .disminuir(item);
                                       });
                                     },
-                                    icon: const Icon(Icons.remove_circle),
+                                    icon: const Icon(
+                                      Icons.remove_circle,
+                                    ),
                                   ),
 
                                   Text(
-                                    "${item.cantidad}",
+                                    '${item.cantidad}',
                                     style: const TextStyle(
                                       fontSize: 18,
-                                      fontWeight: FontWeight.bold,
+                                      fontWeight:
+                                          FontWeight.bold,
                                     ),
                                   ),
 
                                   IconButton(
                                     onPressed: () {
                                       setState(() {
-                                        Carrito.instancia.aumentar(item);
+                                        Carrito.instancia
+                                            .aumentar(item);
                                       });
                                     },
-                                    icon: const Icon(Icons.add_circle),
+                                    icon: const Icon(
+                                      Icons.add_circle,
+                                    ),
                                   ),
                                 ],
                               ),
 
                               Text(
-                                "Subtotal: ${formatoPrecio.format(item.subtotal)}",
+                                'Subtotal: '
+                                '${formatoPrecio.format(item.subtotal)}',
                                 style: const TextStyle(
                                   fontWeight: FontWeight.bold,
                                   color: Colors.indigo,
@@ -140,15 +335,19 @@ class _CarritoScreenState extends State<CarritoScreen> {
                       Row(
                         children: [
                           const Text(
-                            "Total:",
+                            'Total:',
                             style: TextStyle(
                               fontSize: 22,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
+
                           const Spacer(),
+
                           Text(
-                            formatoPrecio.format(Carrito.instancia.total),
+                            formatoPrecio.format(
+                              Carrito.instancia.total,
+                            ),
                             style: const TextStyle(
                               fontSize: 24,
                               color: Colors.indigo,
@@ -157,7 +356,9 @@ class _CarritoScreenState extends State<CarritoScreen> {
                           ),
                         ],
                       ),
+
                       const SizedBox(height: 15),
+
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton.icon(
@@ -165,19 +366,25 @@ class _CarritoScreenState extends State<CarritoScreen> {
                             backgroundColor: Colors.indigo,
                             foregroundColor: Colors.white,
                           ),
-                          onPressed: () {
-                            setState(() {
-                              Carrito.instancia.vaciar();
-                            });
-
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text("Compra realizada correctamente."),
-                              ),
-                            );
-                          },
-                          icon: const Icon(Icons.payment),
-                          label: const Text("Finalizar compra"),
+                          onPressed: _procesandoPedido
+                              ? null
+                              : _abrirConfirmacionPedido,
+                          icon: _procesandoPedido
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child:
+                                      CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Icon(Icons.payment),
+                          label: Text(
+                            _procesandoPedido
+                                ? 'Procesando...'
+                                : 'Finalizar compra',
+                          ),
                         ),
                       ),
                     ],
